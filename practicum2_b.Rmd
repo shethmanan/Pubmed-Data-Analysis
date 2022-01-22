@@ -1,0 +1,197 @@
+---
+title: "Practicum 2"
+output: html_notebook
+---
+
+```{r}
+# Connecting to Database
+
+#Connection setting
+db_user <- 'sudo'
+db_password <- 'dbmsp2neu'
+db_name <- 'med_db'
+db_host <- 'db-practicum-2.cfm4y0dsbhpu.us-east-2.rds.amazonaws.com'
+db_port <- 3306
+
+#Connect to the DB
+dbcon <- dbConnect(MySQL(), user = db_user, password = db_password, dbname = db_name, host = db_host, port = db_port)
+```
+
+```{r}
+# Importing required libraries
+if("RMySQL" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("RMySQL")
+}
+library(RMySQL)
+if("XML" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("XML")
+}
+library(XML)
+```
+
+```{r}
+# Importing the XML file
+path <- ""
+xmlFile <- "pubmed_sample.xml"
+fp <- paste0(path,xmlFile)
+xmlDOM <- xmlParse(fp)
+```
+
+```{r}
+# get the root node of the DOM tree
+root <- xmlRoot(xmlDOM)
+```
+
+```{r}
+# create various data frames to hold data;
+
+
+# get number of children of root 
+sizeRoot <- xmlSize(root)
+
+
+author <- data.frame (id = integer(),
+                          lname = character(),
+                          fname = character(),
+                          initial = character(),
+                          affiliation = character(),
+                          stringsAsFactors = F)
+
+journal <- data.frame (id = vector (mode = "integer", 
+                                     length = sizeRoot),
+                     title = vector (mode = "character", 
+                                         length = sizeRoot),
+                     volume = vector (mode = "integer", 
+                                       length = sizeRoot),
+                     issue = vector (mode = "integer", 
+                                        length = sizeRoot),
+                     pubDate = vector (mode = "character", 
+                                        length = sizeRoot),
+                     issn = vector (mode = "integer", 
+                                        length = sizeRoot),
+                     stringsAsFactors = F)
+
+article <- data.frame (id = vector (mode = "integer", 
+                                     length = sizeRoot),
+                     title = vector (mode = "character", 
+                                         length = sizeRoot),
+                     pub_date = vector (mode = "character", 
+                                        length = sizeRoot),
+                     journalId = vector (mode = "integer", 
+                                       length = sizeRoot),
+                     pubModel = vector (mode = "character", 
+                                        length = sizeRoot),
+                     stringsAsFactors = F)
+
+
+articleAuthorMapping <- data.frame (id = vector (mode = "integer", 
+                                     length = sizeRoot),
+                     authorId = vector (mode = "integer", 
+                                         length = sizeRoot),
+                     articleId = vector (mode = "integer", 
+                                        length = sizeRoot),
+                     stringsAsFactors = F)
+
+
+history <- data.frame (id = integer(),
+                          date_time = character(),
+                          type = character(),
+                          articleId = integer(),
+                          stringsAsFactors = F)
+
+```
+
+```{r}
+# function to parse Author
+
+```
+
+```{r}
+ for (m in 1:sizeRoot){
+    anItem <- root[[m]]
+    authorList <- anItem[[1]][[5]][[6]]
+    #pmid <- midelineCit[[1]]
+    
+    print(xmlChildren(authorList))
+ }
+```
+```{r}
+  anItem <- root[[2]]
+  #article <- anItem[[1]][[5]]
+  #print(article)
+  #pmid <- midelineCit[[1]]
+  comment <- xpathSApply(root, '/PubmedArticleSet/PubmedArticle/MedlineCitation/Article/ArticleTitle', xmlNode)
+  print(summary(comment))
+```
+
+### Creating the required schema 
+```{sql connection=dbcon}
+DROP TABLE IF EXISTS history,article_author_mapping,article,author,journal;
+
+```
+
+```{sql connection=dbcon}
+CREATE TABLE author (
+  id INTEGER NOT NULL,
+  fname text,
+  lname text NOT NULL,
+  initial text,
+  affiliation text,
+   PRIMARY KEY (id)
+);
+```
+
+```{sql connection=dbcon}
+CREATE TABLE journal (
+  id INTEGER NOT NULL,
+  title TEXT,
+  volume INTEGER,
+  issue INTEGER,
+  pub_date DATE NOT NULL,
+   issn INTEGER, 
+   PRIMARY KEY (id)
+);
+```
+
+```{sql connection=dbcon}
+CREATE TABLE article (
+  id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  pub_date DATE ,
+  journal_id INTEGER NOT NULL,
+  pub_model VARCHAR(100),
+  PRIMARY KEY (id),
+ CONSTRAINT journal_id_fk FOREIGN KEY (journal_id) REFERENCES journal (id)
+);
+```
+
+```{sql connection=dbcon}
+CREATE TABLE history (
+id INTEGER NOT NULL,
+date_time DATETIME NOT NULL,
+type TEXT NOT NULL,
+article_id INTEGER NOT NULL,
+PRIMARY KEY (id),
+CONSTRAINT article_id_fk FOREIGN KEY (article_id) REFERENCES article (id)
+);
+```
+
+```{sql connection=dbcon}
+CREATE TABLE article_author_mapping (
+  id INTEGER NOT NULL,
+article_id INTEGER NOT NULL,
+author_id INTEGER NOT NULL,
+PRIMARY KEY (id),
+CONSTRAINT article_id_fk FOREIGN KEY (article_id) REFERENCES article (id),
+CONSTRAINT author_id_fk FOREIGN KEY (author_id) REFERENCES author (id)
+);
+```
+
+
+
+```{r}
+# Disconnect the database
+dbDisconnect(dbcon)
+```
+
+

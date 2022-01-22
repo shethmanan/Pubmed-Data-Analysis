@@ -1,0 +1,188 @@
+---
+title: "Practicum 2"
+output: html_notebook
+---
+
+## Functions
+
+#### Function: parseJournal
+Returns the data frame for journal when an xml object is passed to this function.
+
+```{r}
+parseJournal <- function(journalItem) {
+  children <- xmlChildren(journalItem)
+  journalIssue <- xmlChildren(children$JournalIssue)
+  
+  title <- xmlValue(children$Title)
+  issn <- as.integer(xmlValue(children$ISSN))
+  volume <- xmlValue(journalIssue$Volume)
+  issue <- xmlValue(journalIssue$Issue)
+  pub_date <- xmlValue(journalIssue$PubDate)
+  
+  return(data.frame(
+    title,
+    issn,
+    volume,
+    issue,
+    pub_date
+  ))
+}
+```
+
+#### Function: parseAuthor
+```{r}
+parseAuthor <- function(authorItem) {
+  children <- xmlChildren(authorItem)
+  lname <- xmlValue(children$LastName)
+  fname <- xmlValue(children$ForeName)
+  initial <- xmlValue(children$Initials)
+  affiliation <- xmlValue(children$Affiliation)
+  
+  return(data.frame(
+    fname,
+    lname,
+    initial,
+    affiliation
+  ))
+}
+```
+
+```{r}
+# Importing required libraries
+if("RMySQL" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("RMySQL")
+}
+library(RMySQL)
+
+if("XML" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("XML")
+}
+library(XML)
+```
+
+```{r}
+# Connecting to Database
+
+#Connection setting
+db_user <- 'sudo'
+db_password <- 'dbmsp2neu'
+db_name <- 'med_db'
+db_host <- 'db-practicum-2.cfm4y0dsbhpu.us-east-2.rds.amazonaws.com'
+db_port <- 3306
+
+#Connect to the DB
+dbcon <- dbConnect(MySQL(), user = db_user, password = db_password, dbname = db_name, host = db_host, port = db_port)
+```
+
+```{r}
+# Importing the XML file
+path <- ""
+xmlFile <- "pubmed_sample.xml"
+fp <- paste0(path,xmlFile)
+xmlDOM <- xmlParse(fp)
+```
+
+```{r}
+# get the root node of the DOM tree
+root <- xmlRoot(xmlDOM)
+```
+
+```{r}
+# create various data frames to hold data;
+
+
+# get number of children of root 
+sizeRoot <- xmlSize(root)
+
+
+author <- data.frame (id = integer(),
+                      lname = character(),
+                      fname = character(),
+                      initial = character(),
+                      affiliation = character(),
+                      stringsAsFactors = F)
+
+journal <- data.frame (id = vector (mode = "integer", length = sizeRoot),
+                       title = vector (mode = "character", length = sizeRoot),
+                       issn = vector (mode = "integer", length = sizeRoot),
+                       stringsAsFactors = F)
+
+journalIssue <- data.frame (id = integer(),
+                            volume = integer(),
+                            issue = integer(),
+                            journal_id = integer(),
+                            pub_date = character(),
+                            stringsAsFactors = F)
+
+article <- data.frame (id = vector (mode = "integer", length = sizeRoot),
+                       title = vector (mode = "character", length = sizeRoot),
+                       pub_date = vector (mode = "character", length = sizeRoot),
+                       journal_id = vector (mode = "integer", length = sizeRoot),
+                       pub_model = vector (mode = "character", length = sizeRoot),
+                       stringsAsFactors = F)
+
+
+articleAuthorMapping <- data.frame (id = integer(),
+                                    author_id = integer(),
+                                    article_id = integer(),
+                                    stringsAsFactors = F)
+
+
+history <- data.frame (id = integer(),
+                       date_time = character(),
+                       type = character(),
+                       article_id = integer(),
+                       stringsAsFactors = F)
+
+```
+
+```{r}
+ for (m in 1:sizeRoot){
+    anItem <- root[[m]]
+    authorList <- anItem[[1]][[5]][[6]]
+    #pmid <- midelineCit[[1]]
+    
+    print(xmlChildren(authorList))
+ }
+```
+
+```{r}
+authorListXpath <- "/PubmedArticleSet/PubmedArticle/MedlineCitation/Article/AuthorList/Author"
+
+authorList <- xpathSApply(xmlDOM, authorListXpath)
+for(i in 1:xmlSize(authorList)){
+  item <- parseAuthor(authorList[[i]])
+  author[i,"id"] = i
+  author[i,"lname"] = item$lname
+  author[i,"fname"] = item$fname
+  author[i,"initial"] = item$initial
+  author[i,"affiliation"] = item$affiliation
+
+}
+head(author)
+```
+
+```{r}
+journalListXpath <- "/PubmedArticleSet/PubmedArticle/MedlineCitation/Article/Journal"
+
+journalList <- xpathSApply(xmlDOM, journalListXpath)
+print(journalList)
+for(i in 1:sizeRoot) {
+  item <- parseJournal(journalList[[i]])
+
+  journal[i,"id"] = i
+  journal[i,"title"] = item$title
+  journal[i,"volume"] = item$volume
+  journal[i,"issn"] = item$issn
+  journal[i,"pub_date"] = item$pub_date
+  journal[i,"issue"] = item$issue
+}
+```
+
+
+```{r}
+# Disconnect the database
+dbDisconnect(dbcon)
+```
+
+

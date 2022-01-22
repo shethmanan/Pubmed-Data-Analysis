@@ -1,0 +1,216 @@
+---
+title: "Practicum 2"
+output: html_notebook
+---
+
+## Support Functions
+
+#### Function: parseJournal
+Returns the data frame for journal when an xml object is passed to this function.
+
+```{r parseJournal}
+parseJournal <- function(journalItem) {
+  children <- xmlChildren(journalItem)
+  
+  title <- xmlValue(children$Title)
+  issn <- xmlValue(children$ISSN)
+  
+  return(data.frame(
+    title,
+    issn
+  ))
+}
+```
+
+#### Function: parseAuthor
+Returns the data frame for the author from an xml object which is passed to this function.
+```{r}
+parseAuthor <- function(authorItem) {
+  children <- xmlChildren(authorItem)
+  lname <- xmlValue(children$LastName)
+  fname <- xmlValue(children$ForeName)
+  initial <- xmlValue(children$Initials)
+  affiliation <- xmlValue(children$Affiliation)
+  
+  return(data.frame(
+    lname,
+    fname,
+    initial,
+    affiliation
+  ))
+}
+```
+
+#### Function: rowExists
+Checks if the row exists in th given dataframe and returns the key of the existing row else returns 0.
+
+```{r rowExists}
+rowExists <- function(df, row) {
+  r <- nrow(df)
+  
+  if(r == 0){
+    return(0)
+  }
+  for(a in 1:r){
+    if(all(df[a,]==row[1,])) {
+      return(a)
+    }
+  }
+  return(0)
+}
+```
+
+```{r}
+cleanString <- function(dirtyString){
+  cleanedString <- str_replace_all(dirtyString, "[^[:alnum:]]", "")
+  return(cleanedString) 
+}
+```
+
+
+```{r}
+# Importing required libraries
+if("RMySQL" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("RMySQL")
+}
+library(RMySQL)
+
+if("XML" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("XML")
+}
+library(XML)
+library(stringr)
+```
+
+```{r}
+# Connecting to Database
+
+#Connection setting
+db_user <- 'sudo'
+db_password <- 'dbmsp2neu'
+db_name <- 'med_db'
+db_host <- 'db-practicum-2.cfm4y0dsbhpu.us-east-2.rds.amazonaws.com'
+db_port <- 3306
+
+#Connect to the DB
+dbcon <- dbConnect(MySQL(), user = db_user, password = db_password, dbname = db_name, host = db_host, port = db_port)
+```
+
+```{r}
+# Importing the XML file
+path <- ""
+xmlFile <- "pubmed_sample.xml"
+fp <- paste0(path,xmlFile)
+xmlDOM <- xmlParse(fp)
+```
+
+```{r}
+# get the root node of the DOM tree
+root <- xmlRoot(xmlDOM)
+# get number of children of root 
+sizeRoot <- xmlSize(root)
+```
+
+```{r}
+# create various data frames to hold data;
+author <- data.frame (id = integer(),
+                      lname = character(),
+                      fname = character(),
+                      initial = character(),
+                      affiliation = character(),
+                      stringsAsFactors = F)
+
+journal <- data.frame (id = integer(),
+                       title = character(),
+                       issn = character(),
+                       stringsAsFactors = F)
+
+journalIssue <- data.frame (id = integer(),
+                            volume = integer(),
+                            issue = integer(),
+                            journal_id = integer(),
+                            pub_date = character(),
+                            stringsAsFactors = F)
+
+article <- data.frame (id = integer(),
+                       title = character(),
+                       pub_date = character(),
+                       journal_id = integer(),
+                       pub_model = character(),
+                       stringsAsFactors = F)
+
+
+articleAuthorMapping <- data.frame (id = integer(),
+                                    author_id = integer(),
+                                    article_id = integer(),
+                                    stringsAsFactors = F)
+
+
+history <- data.frame (id = integer(),
+                       date_time = character(),
+                       type = character(),
+                       article_id = integer(),
+                       stringsAsFactors = F)
+
+```
+
+## Parsing XML data to dataframes
+
+#### Parsing &lt;Journal&gt; to dataframe
+```{r}
+journalListXpath <- "/PubmedArticleSet/PubmedArticle/MedlineCitation/Article/Journal"
+journalList <- xpathSApply(xmlDOM, journalListXpath)
+
+counter <- 0
+for(i in 1:sizeRoot) {
+  item <- parseJournal(journalList[[i]])
+  
+  if(rowExists(journal[, 2:ncol(journal)], item) == 0){
+    journal[counter,"id"] = counter
+    journal[counter,"title"] = item$title
+    journal[counter,"issn"] = item$issn 
+    
+    counter <- counter + 1
+  }
+}
+```
+
+#### Parsing &lt;JournalIssue&gt; to dataframe
+```{r}
+journalIssueXPath <- "/PubmedArticleSet/PubmedArticle/MedlineCitation/Article/Journal/JournalIssue"
+journalIssueList <- xpathSApply(xmlDOM, journalIssueXPath)
+
+for(i in 1:sizeRoot) {
+  
+}
+```
+
+#### Parsing all Authors to dataframe
+```{r}
+authorListXpath <- "/PubmedArticleSet/PubmedArticle/MedlineCitation/Article/AuthorList/Author"
+
+authorList <- xpathSApply(xmlDOM, authorListXpath)
+counter <- 1
+for(i in 1:xmlSize(authorList)){
+  item <- parseAuthor(authorList[[i]])
+  item$lname = cleanString(item$lname)
+  item$fname = cleanString(item$fname)
+  item$initial = cleanString(item$initial)
+  
+  if(rowExists(author[, 2:(ncol(author)-1)], item[,1:(ncol(item)-1)]) == 0){
+    author[counter,"id"] = counter
+    author[counter,"lname"] = item$lname
+    author[counter,"fname"] = item$fname
+    author[counter,"initial"] = item$initial
+    author[counter,"affiliation"] = item$affiliation
+    counter <- counter + 1
+  }
+}
+```
+
+```{r}
+# Disconnect the database
+dbDisconnect(dbcon)
+```
+
+
