@@ -9,7 +9,6 @@ A 'R' project, which cleans data from XML, stores it in a relational database, e
 ![](imageforreadme/02.jpg)
 
 ## 3. Creating OLTP Database and inserting data
-![](imageforreadme/12.jpg)
 ![](imageforreadme/13.jpg)
 
 ## 4. OLAP Schema
